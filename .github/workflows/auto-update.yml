@@ -1,0 +1,27 @@
+# Lint formula on incoming PRs (optional)
+name: Lint formula on PR
+
+on:
+  pull_request:
+    paths:
+      - 'Formula/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Homebrew on Linux runner
+        if: runner.os == 'Linux'
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+      - name: Run brew audit (best-effort)
+        run: |
+          if command -v brew >/dev/null 2>&1; then
+            brew update
+            brew install ruby || true
+            brew audit --strict --online Formula/rsleep.rb || true
+          else
+            echo "brew not available in runner"
+          fi
