@@ -1,0 +1,122 @@
+# This workflow file should be added to the main rsleep repository at:
+# .github/workflows/update-homebrew-tap.yml
+#
+# It automatically updates the Homebrew tap formula when a new release is published.
+# See AUTOMATION-GUIDE.md for setup instructions.
+
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to update (e.g., v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: danielsan/rsleep-brew-tap
+          token: ${{ secrets.TAP_REPO_TOKEN }}
+          path: tap
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${{ github.event.release.tag_name }}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_no_v=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Download release assets and compute checksums
+        id: checksums
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Download and compute SHA256 for x86_64 macOS
+          curl -L -o x86_64-darwin.tar.gz \
+            "https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-apple-darwin.tar.gz"
+          SHA256_X86_64_DARWIN=$(sha256sum x86_64-darwin.tar.gz | awk '{print $1}')
+          echo "sha256_x86_64_darwin=${SHA256_X86_64_DARWIN}" >> $GITHUB_OUTPUT
+          
+          # Download and compute SHA256 for aarch64 macOS
+          curl -L -o aarch64-darwin.tar.gz \
+            "https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-aarch64-apple-darwin.tar.gz"
+          SHA256_AARCH64_DARWIN=$(sha256sum aarch64-darwin.tar.gz | awk '{print $1}')
+          echo "sha256_aarch64_darwin=${SHA256_AARCH64_DARWIN}" >> $GITHUB_OUTPUT
+          
+          # Download and compute SHA256 for x86_64 Linux
+          curl -L -o x86_64-linux.tar.gz \
+            "https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          SHA256_X86_64_LINUX=$(sha256sum x86_64-linux.tar.gz | awk '{print $1}')
+          echo "sha256_x86_64_linux=${SHA256_X86_64_LINUX}" >> $GITHUB_OUTPUT
+
+      - name: Update formula
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_NO_V="${{ steps.version.outputs.version_no_v }}"
+          SHA256_X86_64_DARWIN="${{ steps.checksums.outputs.sha256_x86_64_darwin }}"
+          SHA256_AARCH64_DARWIN="${{ steps.checksums.outputs.sha256_aarch64_darwin }}"
+          SHA256_X86_64_LINUX="${{ steps.checksums.outputs.sha256_x86_64_linux }}"
+          
+          cd tap/Formula
+          
+          # Update version
+          sed -i "s/version \".*\"/version \"${VERSION_NO_V}\"/" rsleep.rb
+          
+          # Update x86_64 macOS URL and SHA256
+          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9.]*/rsleep-v[0-9.]*-x86_64-apple-darwin.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-apple-darwin.tar.gz|" rsleep.rb
+          sed -i "/x86_64-apple-darwin.tar.gz/,/sha256/ s/sha256 \".*\"/sha256 \"${SHA256_X86_64_DARWIN}\"/" rsleep.rb
+          
+          # Update aarch64 macOS URL and SHA256
+          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9.]*/rsleep-v[0-9.]*-aarch64-apple-darwin.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-aarch64-apple-darwin.tar.gz|" rsleep.rb
+          sed -i "/aarch64-apple-darwin.tar.gz/,/sha256/ s/sha256 \".*\"/sha256 \"${SHA256_AARCH64_DARWIN}\"/" rsleep.rb
+          
+          # Update x86_64 Linux URL and SHA256
+          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9.]*/rsleep-v[0-9.]*-x86_64-unknown-linux-gnu.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-unknown-linux-gnu.tar.gz|" rsleep.rb
+          sed -i "/x86_64-unknown-linux-gnu.tar.gz/,/sha256/ s/sha256 \".*\"/sha256 \"${SHA256_X86_64_LINUX}\"/" rsleep.rb
+
+      - name: Commit and push changes
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/rsleep.rb
+          git commit -m "Update rsleep formula to ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Create pull request (alternative to direct push)
+        if: false  # Set to true if you prefer PR-based updates
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.TAP_REPO_TOKEN }}
+          path: tap
+          commit-message: "Update rsleep formula to ${{ steps.version.outputs.version }}"
+          title: "Update rsleep formula to ${{ steps.version.outputs.version }}"
+          body: |
+            Automated update of rsleep formula to version ${{ steps.version.outputs.version }}.
+            
+            This PR updates:
+            - Formula version
+            - Release URLs for all platforms
+            - SHA256 checksums for all platforms
+            
+            **Checksums:**
+            - x86_64 macOS: ${{ steps.checksums.outputs.sha256_x86_64_darwin }}
+            - aarch64 macOS: ${{ steps.checksums.outputs.sha256_aarch64_darwin }}
+            - x86_64 Linux: ${{ steps.checksums.outputs.sha256_x86_64_linux }}
+          branch: update-formula-${{ steps.version.outputs.version }}
+          delete-branch: true
