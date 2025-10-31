@@ -1,27 +1,75 @@
-# Lint formula on incoming PRs (optional)
-name: Lint formula on PR
+name: CI - Lint and Test Formula
 
 on:
   pull_request:
     paths:
       - 'Formula/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Formula/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  lint:
+  audit:
+    name: Audit Formula
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - name: Install Homebrew on Linux runner
-        if: runner.os == 'Linux'
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Run brew audit
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-      - name: Run brew audit (best-effort)
+          # Run audit without style checks since this is a third-party tap
+          # Style checks are more relevant for core Homebrew formulas
+          brew audit --strict --online --skip-style Formula/rsleep.rb
+
+  test-macos:
+    name: Test on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Test formula installation
         run: |
-          if command -v brew >/dev/null 2>&1; then
-            brew update
-            brew install ruby || true
-            brew audit --strict --online Formula/rsleep.rb || true
-          else
-            echo "brew not available in runner"
-          fi
+          brew install --build-from-source Formula/rsleep.rb
+          brew test Formula/rsleep.rb
+
+      - name: Verify installation
+        run: |
+          rsleep --help
+          rsleep 0.1
+
+  test-linux:
+    name: Test on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Test formula installation
+        run: |
+          brew install --build-from-source Formula/rsleep.rb
+          brew test Formula/rsleep.rb
+
+      - name: Verify installation
+        run: |
+          rsleep --help
+          rsleep 0.1
