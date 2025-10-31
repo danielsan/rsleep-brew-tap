@@ -11,6 +11,9 @@ on:
       - 'Formula/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   audit:
     name: Audit Formula
