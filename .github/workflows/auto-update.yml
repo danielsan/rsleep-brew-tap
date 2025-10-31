@@ -25,6 +25,8 @@ jobs:
 
       - name: Run brew audit
         run: |
+          # Run audit without style checks since this is a third-party tap
+          # Style checks are more relevant for core Homebrew formulas
           brew audit --strict --online --skip-style Formula/rsleep.rb
 
   test-macos:

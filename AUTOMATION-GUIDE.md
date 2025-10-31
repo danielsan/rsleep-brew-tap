@@ -2,6 +2,8 @@
 
 This guide explains how to set up automated formula updates in the main rsleep repository.
 
+> **Quick Start:** A complete, ready-to-use workflow file is available in [`examples/update-homebrew-tap.yml`](examples/update-homebrew-tap.yml). You can copy it directly to the main rsleep repository.
+
 ## Overview
 
 When a new release is created in the main rsleep repository, a GitHub Actions workflow can automatically update the Homebrew formula in this tap repository with the correct version, URLs, and SHA256 checksums.
@@ -25,7 +27,11 @@ When a new release is created in the main rsleep repository, a GitHub Actions wo
 
 ### 3. Add the Workflow to the Main Repository
 
-Create a file `.github/workflows/update-homebrew-tap.yml` in the main rsleep repository with the following content:
+Create a file `.github/workflows/update-homebrew-tap.yml` in the main rsleep repository.
+
+**Note:** A complete, ready-to-use workflow file is provided in `examples/update-homebrew-tap.yml` in this repository.
+
+The workflow should include:
 
 ```yaml
 name: Update Homebrew Tap
@@ -39,6 +45,11 @@ on:
         description: 'Version to update (e.g., v0.1.0)'
         required: true
         type: string
+      use_pull_request:
+        description: 'Create a pull request instead of direct push'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -113,7 +124,8 @@ jobs:
           sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9.]*/rsleep-v[0-9.]*-x86_64-unknown-linux-gnu.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-unknown-linux-gnu.tar.gz|" rsleep.rb
           sed -i "/x86_64-unknown-linux-gnu.tar.gz/,/sha256/ s/sha256 \".*\"/sha256 \"${SHA256_X86_64_LINUX}\"/" rsleep.rb
 
-      - name: Commit and push changes
+      - name: Commit and push changes (direct push mode)
+        if: ${{ !inputs.use_pull_request }}
         run: |
           cd tap
           git config user.name "github-actions[bot]"
@@ -122,8 +134,8 @@ jobs:
           git commit -m "Update rsleep formula to ${{ steps.version.outputs.version }}"
           git push
 
-      - name: Create pull request (alternative to direct push)
-        if: false  # Set to true if you prefer PR-based updates
+      - name: Create pull request (PR mode)
+        if: ${{ inputs.use_pull_request || github.event_name == 'workflow_dispatch' }}
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.TAP_REPO_TOKEN }}
