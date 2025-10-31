@@ -171,11 +171,12 @@ The workflow can be configured to either:
 1. **Direct Push** (default): Automatically commits and pushes changes directly to the main branch
    - Faster updates
    - Suitable for trusted automated updates
+   - Used automatically when triggered by release events
 
 2. **Pull Request**: Creates a PR for review before merging
    - Allows manual review of changes
    - More suitable for critical repositories
-   - Enable by setting `if: false` to `if: true` in the "Create pull request" step
+   - Can be enabled by setting `use_pull_request` to `true` when manually triggering the workflow
 
 ## Troubleshooting
 
