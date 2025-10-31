@@ -83,19 +83,20 @@ jobs:
           sed -i "s/version \".*\"/version \"${VERSION_NO_V}\"/" rsleep.rb
           
           # Update x86_64 macOS URL and SHA256
-          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9]\+\.[0-9]\+\.[0-9]\+/rsleep-v[0-9]\+\.[0-9]\+\.[0-9]\+-x86_64-apple-darwin.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-apple-darwin.tar.gz|" rsleep.rb
+          # Pattern matches versions like v1.0.0, v1.2.3-alpha, v2.0.0-rc1, etc.
+          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9][0-9.a-zA-Z-]*/rsleep-v[0-9][0-9.a-zA-Z-]*-x86_64-apple-darwin.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-apple-darwin.tar.gz|" rsleep.rb
           sed -i "/x86_64-apple-darwin.tar.gz/,/sha256/ s/sha256 \".*\"/sha256 \"${SHA256_X86_64_DARWIN}\"/" rsleep.rb
           
           # Update aarch64 macOS URL and SHA256
-          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9]\+\.[0-9]\+\.[0-9]\+/rsleep-v[0-9]\+\.[0-9]\+\.[0-9]\+-aarch64-apple-darwin.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-aarch64-apple-darwin.tar.gz|" rsleep.rb
+          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9][0-9.a-zA-Z-]*/rsleep-v[0-9][0-9.a-zA-Z-]*-aarch64-apple-darwin.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-aarch64-apple-darwin.tar.gz|" rsleep.rb
           sed -i "/aarch64-apple-darwin.tar.gz/,/sha256/ s/sha256 \".*\"/sha256 \"${SHA256_AARCH64_DARWIN}\"/" rsleep.rb
           
           # Update x86_64 Linux URL and SHA256
-          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9]\+\.[0-9]\+\.[0-9]\+/rsleep-v[0-9]\+\.[0-9]\+\.[0-9]\+-x86_64-unknown-linux-gnu.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-unknown-linux-gnu.tar.gz|" rsleep.rb
+          sed -i "s|https://github.com/danielsan/rsleep/releases/download/v[0-9][0-9.a-zA-Z-]*/rsleep-v[0-9][0-9.a-zA-Z-]*-x86_64-unknown-linux-gnu.tar.gz|https://github.com/danielsan/rsleep/releases/download/${VERSION}/rsleep-${VERSION}-x86_64-unknown-linux-gnu.tar.gz|" rsleep.rb
           sed -i "/x86_64-unknown-linux-gnu.tar.gz/,/sha256/ s/sha256 \".*\"/sha256 \"${SHA256_X86_64_LINUX}\"/" rsleep.rb
 
       - name: Commit and push changes (direct push mode)
-        if: ${{ !inputs.use_pull_request }}
+        if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.use_pull_request) }}
         run: |
           cd tap
           git config user.name "github-actions[bot]"
@@ -105,7 +106,7 @@ jobs:
           git push
 
       - name: Create pull request (PR mode)
-        if: ${{ inputs.use_pull_request || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.use_pull_request }}
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.TAP_REPO_TOKEN }}
